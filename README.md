@@ -27,9 +27,10 @@ stability diagnostic and is never used to admit, reject, or tune trades.
    `log(GLD) = intercept + beta * log(SLV) + residual` with `statsmodels` OLS.
 4. During trading, refit that OLS monthly (every 21 observations) on an expanding window ending
    on the previous observation. No current or future price enters that day's parameter estimate.
-5. Construct the residual spread and a trailing 60-day z-score. Enter long spread at `z <= -2`,
-   short spread at `z >= 2`, and exit inside `+/-0.5`. These fixed baseline parameters are not
-   selected on trading-period results.
+5. For each signal date, apply that date's lagged OLS coefficients consistently to all observations
+   in its trailing 60-day spread window, then calculate the z-score. Enter long spread at
+   `z <= -2`, short spread at `z >= 2`, and exit inside `+/-0.5`. These fixed baseline parameters
+   are not selected on trading-period results.
 6. A signal observed at close *t* determines weights held over *t* to *t+1*. Pair weights are
    normalized to one dollar of gross exposure: `w_GLD = position/(1+|beta|)` and
    `w_SLV = -position*beta/(1+|beta|)`.
@@ -79,8 +80,8 @@ The CLI also accepts `--start`, `--end` (exclusive), `--formation-end`, `--data-
 The reproducible run through 2025-12-31 does **not** support the proposed strategy. The formation
 period Engle–Granger test fails to reject no cointegration (p-value 0.216), and the ex-post trading
 period diagnostic also fails to reject it (p-value 0.356). After 5 bps one-way costs, the fixed
-walk-forward strategy produces a -4.30% CAGR, -0.77 Sharpe ratio, and -31.42% maximum drawdown over
-2018–2025. It opens 32 trades and wins 58.06% of closed trades, illustrating why hit rate alone is
+walk-forward strategy produces a -4.57% CAGR, -0.81 Sharpe ratio, and -33.53% maximum drawdown over
+2018–2025. It opens 33 trades and wins 65.62% of closed trades, illustrating why hit rate alone is
 not evidence of profitability. These values are generated from Yahoo Finance data and may change
 slightly if that vendor revises history; the complete run is persisted under `outputs/`.
 

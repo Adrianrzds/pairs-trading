@@ -10,6 +10,7 @@ from .stats import (
     rolling_hedge_ratio,
     walk_forward_ols,
     compute_zscore,
+    compute_walk_forward_spread_zscore,
 )
 from .backtest import (
     generate_signals,
@@ -36,6 +37,7 @@ __all__ = [
     "rolling_hedge_ratio",
     "walk_forward_ols",
     "compute_zscore",
+    "compute_walk_forward_spread_zscore",
     "generate_signals",
     "simulate_pair_backtest",
     "calculate_performance_metrics",

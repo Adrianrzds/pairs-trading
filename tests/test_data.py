@@ -5,7 +5,10 @@ from stat_arb.data import validate_price_data
 
 
 def test_validate_price_data() -> None:
-    prices = pd.DataFrame({"GLD": [1.0, 1.1, 1.2], "SLV": [2.0, 2.1, 2.2]}, index=pd.date_range("2020-01-01", periods=3, freq="D"))
+    prices = pd.DataFrame(
+        {"GLD": [1.0, 1.1, 1.2], "SLV": [2.0, 2.1, 2.2]},
+        index=pd.date_range("2020-01-01", periods=3, freq="D"),
+    )
     validated = validate_price_data(prices)
     assert validated.equals(prices)
 
