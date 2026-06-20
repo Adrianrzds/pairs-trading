@@ -137,7 +137,9 @@ def calculate_performance_metrics(
     )
     max_drawdown = float((equity / equity.cummax() - 1.0).min())
     closed = trades.loc[trades["closed"]] if trades is not None and not trades.empty else None
-    hit_rate = float((closed["net_return"] > 0).mean()) if closed is not None and len(closed) else np.nan
+    hit_rate = (
+        float((closed["net_return"] > 0).mean()) if closed is not None and len(closed) else np.nan
+    )
     return {
         "cumulative_return": ending_equity - 1.0,
         "cagr": float(cagr),

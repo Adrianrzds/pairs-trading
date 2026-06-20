@@ -1,17 +1,17 @@
 from __future__ import annotations
 
-import matplotlib
-
-matplotlib.use("Agg")
-
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+plt.switch_backend("Agg")
+
 
 def plot_price_series(prices: pd.DataFrame, path: str | None = None) -> None:
     normalized = prices / prices.iloc[0]
-    ax = normalized.plot(title="GLD and SLV: Growth of $1", xlabel="Date", ylabel="Normalized price")
+    ax = normalized.plot(
+        title="GLD and SLV: Growth of $1", xlabel="Date", ylabel="Normalized price"
+    )
     ax.figure.tight_layout()
     if path:
         ax.figure.savefig(path)

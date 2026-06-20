@@ -5,14 +5,20 @@ from stat_arb.backtest import generate_signals, simulate_pair_backtest
 
 
 def test_generate_signals() -> None:
-    zscore = pd.Series([-3.0, -2.5, -1.5, -0.2, 0.1, 2.1, 1.0, 0.0], index=pd.date_range("2020-01-01", periods=8))
+    zscore = pd.Series(
+        [-3.0, -2.5, -1.5, -0.2, 0.1, 2.1, 1.0, 0.0],
+        index=pd.date_range("2020-01-01", periods=8),
+    )
     signals = generate_signals(zscore)
     assert signals.loc["2020-01-01", "position"] == 1
     assert signals.loc["2020-01-06", "position"] == -1
 
 
 def test_simulate_pair_backtest() -> None:
-    prices = pd.DataFrame({"GLD": [100.0, 101.0, 102.0], "SLV": [20.0, 20.2, 20.4]}, index=pd.date_range("2020-01-01", periods=3))
+    prices = pd.DataFrame(
+        {"GLD": [100.0, 101.0, 102.0], "SLV": [20.0, 20.2, 20.4]},
+        index=pd.date_range("2020-01-01", periods=3),
+    )
     hedge_ratio = pd.Series(5.0, index=prices.index)
     zscore = pd.Series([3.0, 1.0, -3.0], index=prices.index)
     signals = generate_signals(zscore)

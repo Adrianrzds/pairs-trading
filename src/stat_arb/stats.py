@@ -65,12 +65,16 @@ def walk_forward_ols(
     if refit_frequency < 1:
         raise ValueError("Refit frequency must be positive.")
 
-    parameters = pd.DataFrame(index=trading_dates, columns=["intercept", "hedge_ratio"], dtype=float)
+    parameters = pd.DataFrame(
+        index=trading_dates, columns=["intercept", "hedge_ratio"], dtype=float
+    )
     for number, date in enumerate(trading_dates):
         if number % refit_frequency == 0:
             history = aligned.loc[aligned.index < date]
             if len(history) < 20:
-                raise ValueError("At least 20 pre-trading observations are required for walk-forward OLS.")
+                raise ValueError(
+                    "At least 20 pre-trading observations are required for walk-forward OLS."
+                )
             intercept, beta = estimate_ols_parameters(history["y"], history["x"])
             parameters.loc[date] = [intercept, beta]
     return parameters.ffill()
@@ -82,9 +86,9 @@ def rolling_hedge_ratio(
     window: int,
 ) -> pd.Series:
     """Estimate a rolling hedge ratio using OLS on a moving window."""
-    hedge_ratio = (
-        x.rolling(window)
-        .apply(lambda z: sm.OLS(y.loc[z.index], sm.add_constant(z), missing="drop").fit().params[1], raw=False)
+    hedge_ratio = x.rolling(window).apply(
+        lambda z: sm.OLS(y.loc[z.index], sm.add_constant(z), missing="drop").fit().params[1],
+        raw=False,
     )
     return hedge_ratio
 
@@ -96,3 +100,43 @@ def compute_zscore(series: pd.Series, window: int) -> pd.Series:
     mu = series.rolling(window, min_periods=window).mean()
     sigma = series.rolling(window, min_periods=window).std(ddof=1).replace(0, np.nan)
     return (series - mu) / sigma
+
+
+def compute_walk_forward_spread_zscore(
+    y: pd.Series,
+    x: pd.Series,
+    parameters: pd.DataFrame,
+    window: int,
+) -> pd.DataFrame:
+    """Construct date-consistent walk-forward spreads and trailing z-scores.
+
+    For signal date ``t``, every observation in the trailing window is transformed
+    using the intercept and hedge ratio available at ``t``. This avoids comparing
+    residuals produced by different model fits while retaining strictly historical
+    estimation: callers must supply parameters fitted only through ``t - 1``.
+    """
+    if window < 2:
+        raise ValueError("Z-score window must be at least two observations.")
+    required_columns = {"intercept", "hedge_ratio"}
+    if not required_columns.issubset(parameters.columns):
+        raise ValueError(f"Parameters must contain columns {sorted(required_columns)}.")
+
+    aligned = pd.concat([y.rename("y"), x.rename("x")], axis=1).reindex(parameters.index)
+    if aligned.isna().any().any() or parameters[list(required_columns)].isna().any().any():
+        raise ValueError("Prices and walk-forward parameters must be complete and aligned.")
+
+    spread = pd.Series(index=parameters.index, dtype=float, name="spread")
+    zscore = pd.Series(index=parameters.index, dtype=float, name="zscore")
+    for position, date in enumerate(parameters.index):
+        intercept = float(parameters.at[date, "intercept"])
+        beta = float(parameters.at[date, "hedge_ratio"])
+        spread.at[date] = aligned.at[date, "y"] - intercept - beta * aligned.at[date, "x"]
+        if position + 1 < window:
+            continue
+        trailing = aligned.iloc[position - window + 1 : position + 1]
+        comparable_spread = trailing["y"] - intercept - beta * trailing["x"]
+        sigma = comparable_spread.std(ddof=1)
+        if sigma > 0 and np.isfinite(sigma):
+            zscore.at[date] = (comparable_spread.iloc[-1] - comparable_spread.mean()) / sigma
+
+    return pd.concat([spread, zscore], axis=1)

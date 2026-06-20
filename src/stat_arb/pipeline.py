@@ -12,11 +12,10 @@ from .data import download_price_data, save_price_data, validate_price_data
 from .plot import plot_equity_curve, plot_price_series, plot_spread_and_zscore
 from .preprocess import compute_correlation, compute_log_prices, compute_log_returns
 from .stats import (
-    construct_spread,
+    compute_walk_forward_spread_zscore,
     engle_granger_test,
     estimate_ols_parameters,
     walk_forward_ols,
-    compute_zscore,
 )
 
 
@@ -55,7 +54,7 @@ def run_research(
     trading_start = trading.index[0]
 
     formation_coint = engle_granger_test(formation["GLD"], formation["SLV"])
-    # This second test is reported only as an ex-post stability diagnostic, never as a trading filter.
+    # Report this second test only as an ex-post stability diagnostic, never as a trading filter.
     trading_coint = engle_granger_test(trading["GLD"], trading["SLV"])
     intercept, beta = estimate_ols_parameters(formation["GLD"], formation["SLV"])
     parameters = walk_forward_ols(
@@ -64,13 +63,14 @@ def run_research(
         trading_start=trading_start,
         refit_frequency=config.refit_frequency,
     )
-    trading_spread = construct_spread(
+    spread_statistics = compute_walk_forward_spread_zscore(
         trading["GLD"],
         trading["SLV"],
-        parameters["hedge_ratio"],
-        parameters["intercept"],
-    ).rename("spread")
-    zscore = compute_zscore(trading_spread, config.zscore_window).rename("zscore")
+        parameters,
+        config.zscore_window,
+    )
+    trading_spread = spread_statistics["spread"]
+    zscore = spread_statistics["zscore"]
     signals = generate_signals(zscore, config.entry_threshold, config.exit_threshold)
     result = simulate_pair_backtest(
         prices.loc[trading.index],
