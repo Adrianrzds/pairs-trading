@@ -69,28 +69,38 @@ def simulate_pair_backtest(
     hedge_ratio: pd.Series,
     signals: pd.DataFrame,
     tx_cost: float = 0.0005,
+    position_size: float = 1.0,
 ) -> BacktestResult:
     """Backtest beta-weighted, gross-one pair positions with next-return execution logic.
 
     A signal observed at close t sets portfolio weights for t to t+1. Costs are charged
     on changes in both leg weights. ``tx_cost`` is the one-way cost per dollar traded.
+    ``position_size`` scales the gross notional exposure of each active pair trade.
     """
     if prices.shape[1] != 2:
         raise ValueError("Pair backtests require exactly two price columns.")
     if tx_cost < 0:
         raise ValueError("Transaction cost cannot be negative.")
+    if position_size <= 0:
+        raise ValueError("Position size must be positive.")
     index = prices.index
     beta = hedge_ratio.reindex(index).ffill()
-    position = signals["position"].reindex(index).fillna(0).astype(int)
+    signal_position = signals["position"].reindex(index).fillna(0).astype(int)
     if beta.isna().any():
         raise ValueError("Hedge ratio must be available for every backtest date.")
 
     gross = 1.0 + beta.abs()
-    y_weight = position / gross
-    x_weight = -position * beta / gross
-    weights = pd.DataFrame({prices.columns[0]: y_weight, prices.columns[1]: x_weight})
+    target_y_weight = position_size * signal_position / gross
+    target_x_weight = -position_size * signal_position * beta / gross
+    target_weights = pd.DataFrame(
+        {prices.columns[0]: target_y_weight, prices.columns[1]: target_x_weight}
+    )
+    weights = target_weights.shift(1).fillna(0.0)
+    position = signal_position.shift(1).fillna(0).astype(int)
+    y_weight = weights[prices.columns[0]]
+    x_weight = weights[prices.columns[1]]
     asset_returns = prices.pct_change().fillna(0.0)
-    gross_return = (weights.shift(1).fillna(0.0) * asset_returns).sum(axis=1)
+    gross_return = (weights * asset_returns).sum(axis=1)
     turnover = weights.diff().abs().sum(axis=1)
     turnover.iloc[0] = weights.iloc[0].abs().sum()
     costs = turnover * tx_cost
@@ -99,6 +109,7 @@ def simulate_pair_backtest(
 
     ledger = pd.DataFrame(
         {
+            "signal_position": signal_position,
             "position": position,
             "hedge_ratio": beta,
             "y_weight": y_weight,
