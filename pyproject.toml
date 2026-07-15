@@ -1,24 +1,25 @@
 [project]
-name = "gld-slv-stat-arb"
+name = "pairs-trading-dashboard"
 version = "0.1.0"
-description = "Statistical arbitrage research tools for GLD/SLV pairs trading."
+description = "Local Streamlit dashboard for ETF pairs-trading research and backtesting."
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
   "numpy>=1.24",
   "pandas>=2.0",
-  "scipy>=1.10",
-  "matplotlib>=3.7",
+  "plotly>=5.20",
   "statsmodels>=0.14",
+  "scikit-learn>=1.4",
+  "streamlit>=1.58",
+  "duckdb>=1.0",
+  "pyarrow>=15.0",
   "yfinance>=0.2",
-  "python-dateutil>=2.8"
+  "python-dateutil>=2.8",
+  "python-dotenv>=1.0"
 ]
 
 [project.optional-dependencies]
-dev = ["black>=25.0", "flake8>=7.0", "pytest>=7.4", "ruff>=0.4"]
-
-[project.scripts]
-stat-arb-backtest = "stat_arb.pipeline:main"
+dev = ["black>=25.0", "flake8>=7.0", "pre-commit>=3.5", "pytest>=7.4", "ruff>=0.4"]
 
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]

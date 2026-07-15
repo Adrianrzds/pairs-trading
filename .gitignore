@@ -7,20 +7,23 @@ __pycache__/
 
 # Environments
 .env
+.env.*
 .venv
 venv/
 
 # Jupyter
 .ipynb_checkpoints/
 
-# Data and outputs
+# Data
 data/*
 !data/.gitkeep
-outputs/*
-!outputs/.gitkeep
+*.duckdb
+*.duckdb.wal
+*.parquet
 
 # Packaging and test artifacts
 *.egg-info/
+.cache/
 .pytest_cache/
 .coverage
 htmlcov/

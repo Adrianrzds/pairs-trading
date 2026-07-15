@@ -29,7 +29,7 @@ def test_simulate_pair_backtest() -> None:
 
 def test_signal_is_applied_to_next_period_and_costs_cover_both_legs() -> None:
     index = pd.date_range("2020-01-01", periods=3)
-    prices = pd.DataFrame({"GLD": [100.0, 110.0, 110.0], "SLV": [100.0, 100.0, 100.0]}, index=index)
+    prices = pd.DataFrame({"GLD": [100.0, 100.0, 110.0], "SLV": [100.0, 100.0, 100.0]}, index=index)
     signals = pd.DataFrame({"position": [1, 1, 0]}, index=index)
     result = simulate_pair_backtest(
         prices,
@@ -37,9 +37,27 @@ def test_signal_is_applied_to_next_period_and_costs_cover_both_legs() -> None:
         signals,
         tx_cost=0.001,
     )
-    # Entry at the first close costs 10 bps on gross-one exposure; the 10% GLD move
-    # earns 5% the following day because each leg has 50% absolute weight.
-    assert np.isclose(result.ledger.iloc[0]["transaction_cost"], 0.001)
-    assert np.isclose(result.ledger.iloc[1]["gross_return"], 0.05)
+    # The first signal executes one session later; the 10% GLD move earns 5%
+    # because each leg has 50% absolute weight, and entry cost is charged then.
+    assert np.isclose(result.ledger.iloc[0]["transaction_cost"], 0.0)
+    assert np.isclose(result.ledger.iloc[1]["transaction_cost"], 0.001)
+    assert np.isclose(result.ledger.iloc[2]["gross_return"], 0.05)
     assert result.metrics["trade_count"] == 1
-    assert np.isclose(result.metrics["turnover"], 2.0)
+    assert np.isclose(result.metrics["turnover"], 1.0)
+
+
+def test_position_size_scales_pair_weights_and_costs() -> None:
+    index = pd.date_range("2020-01-01", periods=2)
+    prices = pd.DataFrame({"GLD": [100.0, 100.0], "SLV": [100.0, 100.0]}, index=index)
+    signals = pd.DataFrame({"position": [1, 1]}, index=index)
+    result = simulate_pair_backtest(
+        prices,
+        pd.Series(1.0, index=index),
+        signals,
+        tx_cost=0.001,
+        position_size=2.0,
+    )
+
+    assert np.isclose(result.ledger.iloc[1]["y_weight"], 1.0)
+    assert np.isclose(result.ledger.iloc[1]["x_weight"], -1.0)
+    assert np.isclose(result.ledger.iloc[1]["transaction_cost"], 0.002)

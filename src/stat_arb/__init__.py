@@ -18,10 +18,12 @@ from .backtest import (
     calculate_performance_metrics,
     BacktestResult,
 )
-from .plot import (
-    plot_price_series,
-    plot_spread_and_zscore,
-    plot_equity_curve,
+from .research import (
+    PairResearchConfig,
+    PairResearchResult,
+    build_pair_research,
+    estimate_walk_forward_parameters,
+    rolling_sharpe,
 )
 
 __all__ = [
@@ -42,7 +44,9 @@ __all__ = [
     "simulate_pair_backtest",
     "calculate_performance_metrics",
     "BacktestResult",
-    "plot_price_series",
-    "plot_spread_and_zscore",
-    "plot_equity_curve",
+    "PairResearchConfig",
+    "PairResearchResult",
+    "build_pair_research",
+    "estimate_walk_forward_parameters",
+    "rolling_sharpe",
 ]

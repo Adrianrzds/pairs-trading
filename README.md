@@ -1,128 +1,153 @@
-# Statistical Arbitrage: Gold/Silver Pairs Trading
+# Pairs Trading Research Dashboard
 
-An end-to-end, reproducible research project testing whether the adjusted prices of the
-SPDR Gold Shares ETF (`GLD`) and iShares Silver Trust (`SLV`) have a sufficiently stable
-cointegrating relationship to support an out-of-sample mean-reversion strategy after costs.
+A local, portfolio-quality Python dashboard for researching ETF pairs-trading ideas with
+cointegration diagnostics, walk-forward hedge ratios, delayed-execution backtests, and a
+DuckDB/Parquet data cache.
 
-This is a research baseline, not a claim of deployable alpha or investment advice.
+This is a research tool, not investment advice or evidence of deployable alpha.
 
-## Research question
+## Features
 
-Gold and silver returns can be highly correlated without their price levels sharing a stable
-long-run equilibrium. The project therefore reports both quantities but does not confuse them:
+- Streamlit dashboard for selecting ETF pairs and configuring model/backtest assumptions.
+- Daily adjusted close downloads via `yfinance`.
+- Local Parquet snapshots queried through DuckDB.
+- Engle-Granger cointegration test on log prices.
+- Curated case studies for ETF near-clones, sector pairs, credit pairs, and GLD/SLV regime behavior.
+- Expanding or rolling OLS hedge ratios estimated only from prior observations.
+- Spread and z-score construction with configurable trailing windows.
+- Long-spread, short-spread, and flat signals with configurable entry/exit thresholds.
+- Backtest with one-session signal execution delay, transaction costs, position sizing, turnover,
+  trade list, hit rate, rolling Sharpe, cumulative returns, and drawdown.
+- Deterministic pytest coverage for storage, no-lookahead parameter estimation, signal execution,
+  and backtest mechanics.
 
-- Pearson correlation measures contemporaneous linear co-movement in daily **returns**.
-- Engle–Granger tests whether a linear combination of the two **log-price levels** is stationary.
-
-The pre-specified null hypothesis for Engle–Granger is no cointegration. The formation-period
-p-value is the relevant research result; the trading-period test is clearly labeled as an ex-post
-stability diagnostic and is never used to admit, reject, or tune trades.
-
-## Methodology
-
-1. Download daily adjusted prices from Yahoo Finance and validate alignment, missingness,
-   duplicates, finiteness, and positivity.
-2. Split the sample by date: 2010–2017 is formation and 2018–2025 is trading by default.
-3. On formation data only, calculate return correlation, run Engle–Granger, and estimate
-   `log(GLD) = intercept + beta * log(SLV) + residual` with `statsmodels` OLS.
-4. During trading, refit that OLS monthly (every 21 observations) on an expanding window ending
-   on the previous observation. No current or future price enters that day's parameter estimate.
-5. For each signal date, apply that date's lagged OLS coefficients consistently to all observations
-   in its trailing 60-day spread window, then calculate the z-score. Enter long spread at
-   `z <= -2`, short spread at `z >= 2`, and exit inside `+/-0.5`. These fixed baseline parameters
-   are not selected on trading-period results.
-6. A signal observed at close *t* determines weights held over *t* to *t+1*. Pair weights are
-   normalized to one dollar of gross exposure: `w_GLD = position/(1+|beta|)` and
-   `w_SLV = -position*beta/(1+|beta|)`.
-7. Charge 5 bps one-way on the absolute change in both leg weights. The model reports CAGR,
-   Sharpe, Sortino, maximum drawdown, closed-trade hit rate, gross notional turnover, and entries.
-
-Walk-forward refitting is used for hedge parameters. The z-score uses trailing observations only.
-The first 60 trading observations are consequently a warm-up period with no position.
-
-## Repository layout
+## Repository Layout
 
 ```text
-src/stat_arb/       importable package: data, statistics, signals, backtest, plots, pipeline
-scripts/            thin executable wrapper
-notebooks/          reserved for exploration; production logic stays in the package
-tests/              deterministic unit and integration tests
-data/               generated downloads, ignored by git
-outputs/tables/     generated metrics, diagnostics, ledger, and trade log
-outputs/figures/    generated prices, spread/z-score, equity, and drawdown plots
+app/
+  streamlit_app.py          Streamlit dashboard
+src/stat_arb/
+  config.py                 Environment-aware app defaults
+  storage.py                DuckDB and Parquet price cache
+  data.py                   yfinance download and price validation
+  research.py               Pair research orchestration
+  stats.py                  OLS, cointegration, spread, z-score utilities
+  backtest.py               Delayed-execution pair backtest
+  plotly_charts.py          Dashboard chart builders
+tests/                      Unit and integration tests
+data/                       Generated local cache, ignored by git
 ```
 
-## Reproduce
+## Quickstart
 
 Python 3.10 or later is required.
+
+Clone the repo, create a virtual environment, install the app, then launch Streamlit:
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-python3 -m pip install -e '.[dev]'
-pytest -q
-stat-arb-backtest
+python3 -m pip install -e .
+streamlit run app/streamlit_app.py
 ```
 
-The run downloads data to `data/gld_slv_adjusted_close.csv` and writes all research artifacts to
-`outputs/`. Both directories retain tracked placeholders while generated contents remain ignored.
-To rerun from an existing snapshot without a network call:
+The dashboard opens locally. Use the sidebar to download or refresh the ETF universe, then select
+two cached assets and run the research view.
+
+Optional local settings live in `.env`. To customize paths or the default ETF universe:
 
 ```bash
-stat-arb-backtest --input data/gld_slv_adjusted_close.csv
+cp sample.env .env
 ```
 
-The CLI also accepts `--start`, `--end` (exclusive), `--formation-end`, `--data-path`, and
-`--output-dir`. Exact model assumptions are saved in `outputs/config.json`.
+No API secrets are required for the default Yahoo Finance data path.
 
-## Baseline result
+## Case Studies
 
-The reproducible run through 2025-12-31 does **not** support the proposed strategy. The formation
-period Engle–Granger test fails to reject no cointegration (p-value 0.216), and the ex-post trading
-period diagnostic also fails to reject it (p-value 0.356). After 5 bps one-way costs, the fixed
-walk-forward strategy produces a -4.57% CAGR, -0.81 Sharpe ratio, and -33.53% maximum drawdown over
-2018–2025. It opens 33 trades and wins 65.62% of closed trades, illustrating why hit rate alone is
-not evidence of profitability. These values are generated from Yahoo Finance data and may change
-slightly if that vendor revises history; the complete run is persisted under `outputs/`.
+The dashboard includes four curated asset pairs to show what cointegration does and does not mean:
 
-The appropriate conclusion is not that gold/silver pairs trading can never work. It is that this
-transparent GLD/SLV specification provides no evidence of a stable, cost-surviving cointegrating
-relationship in the tested sample.
+- `SPY` / `IVV`: ETF near-clones tracking the S&P 500. This is the cleanest case where a stable
+  long-run spread is economically plausible.
+- `XLE` / `XOP`: same energy sector, but different portfolio construction and company exposures.
+  Related assets do not automatically imply a stationary spread.
+- `LQD` / `HYG`: corporate bond ETFs with shared rate and credit-cycle drivers but different
+  credit quality. Risk-off periods can change the relationship sharply.
+- `GLD` / `SLV`: related metals with different macro drivers. Gold can behave like a safe-haven
+  asset while silver has more industrial demand exposure, so their relationship can decouple.
 
-## Interpreting results
+The current strategy mode is a cointegration-spread model. If Engle-Granger does not support a
+stationary spread over the selected sample, the app treats that mode as diagnostic only. This does
+not rule out other pairs-trading approaches such as distance trading, rolling/regime cointegration,
+or fundamental relative value.
 
-The core decision is not whether the backtest has a positive Sharpe in isolation. Inspect:
+## Developer Setup
 
-- `cointegration_tests.csv`: does formation reject no cointegration, and does the relationship
-  remain plausible in the held-out period?
-- `walk_forward_parameters.csv`: is the hedge ratio economically and statistically stable?
-- `spread_and_signals.csv`: are entries genuine deviations or regime shifts?
-- `performance_metrics.csv` and `trade_log.csv`: does performance survive two-leg costs, and is it
-  distributed across enough independent trades?
-- `equity_and_drawdown.png`: is return generation steady or concentrated in one episode?
+Install test and lint tools with the development extra:
 
-If formation data does not reject the null, or out-of-sample diagnostics deteriorate materially,
-the honest conclusion is that this particular fixed specification does not establish a tradable
-cointegrating relationship.
+```bash
+python3 -m pip install -e '.[dev]'
+pytest -q
+ruff check .
+```
 
-## Assumptions and limitations
+`pyproject.toml` is the source of truth for package metadata, runtime dependencies, and developer
+tooling. The editable install lets `app/streamlit_app.py` import `stat_arb` without setting
+`PYTHONPATH`.
 
-- Adjusted ETF closes are research proxies, not executable quotes. Close-to-close simulation omits
-  bid/ask dynamics, slippage variation, market impact, borrow availability/fees, financing, taxes,
-  and execution latency.
-- A constant 5 bps per one-way dollar traded is transparent but simplified.
-- GLD and SLV have different economic exposures, fund structures, and inception histories. Their
-  relationship can shift with monetary regimes, industrial silver demand, and ETF-specific flows.
-- Engle–Granger is asymmetric and tests one linear relation. Structural breaks, multiple-testing
-  risk, and residual autocorrelation need deeper analysis before any live use.
-- Expanding estimation adapts slowly after a regime break. A rolling formation window is a sensible
-  robustness check, but its length should be selected without looking at the final holdout.
-- CAGR and annualized ratios use 252 observations per year and a zero risk-free rate. Hit rate uses
-  closed trades; turnover is total gross notional traded over the test, not annualized turnover.
+## Data Flow
 
-## Suggested next research steps
+1. `yfinance` downloads daily adjusted closes for the configured ETF universe.
+2. The cache writes one Parquet file per ticker under `data/raw/`.
+3. DuckDB exposes those Parquet files as a local `prices` view in `data/research.duckdb`.
+4. The dashboard loads the selected pair into a wide adjusted-close table.
+5. Prices are validated for alignment, missing values, duplicate dates, finite values, and
+   positivity.
+6. Log prices feed cointegration, hedge-ratio estimation, spread construction, signal generation,
+   and backtesting.
 
-Freeze the current trading interval as a holdout before adding robustness checks: subperiod and
-structural-break tests, alternative hedge estimators, borrow/financing costs, delayed execution,
-cost stress tests, and a nested train/validation/test scheme for any parameter comparison. Avoid
-turning the final holdout into an optimization set.
+Generated data, DuckDB files, virtualenvs, and `.env` files are ignored by git.
+
+Yahoo Finance data is downloaded by the person running the app in their own local environment.
+This repository does not bundle or redistribute market data.
+
+## Look-Ahead Bias Controls
+
+- Hedge parameters for date `t` are estimated using observations strictly before `t`.
+- Rolling hedge ratios use only the trailing window that ends at `t - 1`.
+- Expanding hedge ratios use all available history through `t - 1`.
+- The z-score at close `t` uses the spread history available through close `t`.
+- The signal observed at close `t` becomes an executed position one session later.
+- Returns and transaction costs are both calculated from executed, delayed weights.
+- The current signal shown in the dashboard is based only on the latest completed close and is
+  labeled as a next-session execution candidate.
+- If cointegration is not supported, the readout marks the cointegration-spread mode as diagnostic.
+
+## Methodology
+
+For a selected dependent asset `Y` and hedge asset `X`, the model estimates:
+
+```text
+log(Y_t) = intercept_t + beta_t * log(X_t) + residual_t
+```
+
+The spread is the residual. A long-spread signal means long `Y` and short `beta * X`; a
+short-spread signal means short `Y` and long `beta * X`. Pair weights are normalized to the
+configured gross exposure:
+
+```text
+w_Y = position_size * position / (1 + abs(beta))
+w_X = -position_size * position * beta / (1 + abs(beta))
+```
+
+Transaction costs are charged on absolute changes in executed leg weights. Turnover is the sum of
+those absolute changes across both legs.
+
+## Limitations
+
+- Adjusted closes are research proxies, not executable prices.
+- The backtest omits bid/ask spread variation, slippage, market impact, borrow costs, financing,
+  taxes, ETF creation/redemption effects, and intraday execution uncertainty.
+- Yahoo Finance data can be revised and may differ from institutional data vendors.
+- Engle-Granger is asymmetric and does not guarantee a stable tradable relationship.
+- Testing many pairs and parameters creates multiple-testing risk.
+- Rolling/expanding OLS adapts slowly to structural breaks.
